@@ -35,6 +35,18 @@
   color: var(--muted);
 }
 
+.hint--info {
+  color: var(--muted);
+}
+
+.hint--warning {
+  color: #b96b00;
+}
+
+.hint--error {
+  color: #bf1f2a;
+}
+
 .connect-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

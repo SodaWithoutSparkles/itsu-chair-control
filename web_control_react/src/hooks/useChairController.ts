@@ -5,6 +5,8 @@ import { buildSendCmdPacket, bytesToHex } from '../lib/protocol'
 import type {
     ChairStatus,
     CommandPreset,
+    ConnectionHint,
+    ConnectionHintLevel,
     LogEntry,
     PressurePreference,
     Screen,
@@ -211,9 +213,22 @@ export function useChairController() {
     const [isConnected, setIsConnected] = useState(false)
     const [isConnecting, setIsConnecting] = useState(false)
     const [deviceName, setDeviceName] = useState('No device selected')
-    const [connectionHint, setConnectionHint] = useState(
-        'Primary write UUID is tried first. If no response, adjust UUIDs and reconnect.',
+
+    const DEFAULT_CONNECTION_HINT: ConnectionHint = {
+        text: 'Primary write UUID is tried first. If no response, adjust UUIDs and reconnect.',
+        level: 'info',
+    }
+
+    const [connectionHint, rawSetConnectionHint] = useState<ConnectionHint>(
+        DEFAULT_CONNECTION_HINT,
     )
+    const setConnectionHint = useCallback(
+        (text: string, level: ConnectionHintLevel = 'info'): void => {
+            rawSetConnectionHint({ text, level })
+        },
+        [],
+    )
+
     const [chairStatus, setChairStatus] = useState<ChairStatus | null>(null)
 
     const [txLogs, setTxLogs] = useState<LogEntry[]>([])
@@ -338,7 +353,10 @@ export function useChairController() {
         setScreen('connect')
         setSidebarOpen(false)
         setDeviceName('No device selected')
-        setConnectionHint('Disconnected. Reconnect and try primary write first; adjust UUIDs if needed.')
+        setConnectionHint(
+            'Disconnected. Reconnect and try primary write first; adjust UUIDs if needed.',
+            'warning',
+        )
         appendTx('Disconnected from chair.')
     }, [appendTx, clearConnectionRefs, detachNotifications])
 
@@ -411,6 +429,7 @@ export function useChairController() {
         if (!bluetooth) {
             setConnectionHint(
                 'This browser does not expose Web Bluetooth. Use a Chromium-based browser on localhost/https.',
+                'error',
             )
             return
         }
@@ -420,9 +439,10 @@ export function useChairController() {
         if (normalizedFilter) {
             setConnectionHint(
                 `Connecting with device name prefix filter "${normalizedFilter}" and checking primary write UUID first...`,
+                'info',
             )
         } else {
-            setConnectionHint('Connecting and checking primary write UUID first...')
+            setConnectionHint('Connecting and checking primary write UUID first...', 'info')
         }
 
         try {
@@ -491,15 +511,18 @@ export function useChairController() {
             setDeviceName(device.name?.trim() ? device.name : 'Unnamed Chair')
 
             if (writeChar) {
-                setConnectionHint('Connected on primary write UUID.')
+                setConnectionHint('Connected on primary write UUID.', 'info')
             } else {
-                setConnectionHint('Primary write UUID not found. Connected via alternate write UUID.')
+                setConnectionHint(
+                    'Primary write UUID not found. Connected via alternate write UUID.',
+                    'warning',
+                )
             }
 
             appendTx(`Connected to ${device.name || 'Unnamed Chair'}.`)
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown connection error'
-            setConnectionHint(`Connection failed: ${message}`)
+            setConnectionHint(`Connection failed: ${message}`, 'error')
             appendTx(`Connection failed: ${message}`)
             handleDisconnected()
         } finally {
@@ -562,7 +585,10 @@ export function useChairController() {
 
             const characteristic = activeWriteCharacteristic()
             if (!characteristic) {
-                setConnectionHint('No active write characteristic available. Disconnect and adjust UUIDs on connect page.')
+                setConnectionHint(
+                    'No active write characteristic available. Disconnect and adjust UUIDs on connect page.',
+                    'error',
+                )
                 appendTx('Send failed: no active write characteristic.')
                 return
             }

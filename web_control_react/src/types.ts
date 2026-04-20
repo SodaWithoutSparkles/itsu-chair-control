@@ -45,6 +45,13 @@ export interface ChairStatus {
   updatedAt: string
 }
 
+export type ConnectionHintLevel = 'info' | 'warning' | 'error'
+
+export interface ConnectionHint {
+  text: string
+  level?: ConnectionHintLevel
+}
+
 export interface LogEntry {
   id: number
   text: string

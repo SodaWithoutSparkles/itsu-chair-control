@@ -1,8 +1,8 @@
-import type { LogEntry, UuidSettings } from '../types'
+import type { ConnectionHint, LogEntry, UuidSettings } from '../types'
 
 type ConnectPageProps = {
     uuidSettings: UuidSettings
-    connectionHint: string
+    connectionHint: ConnectionHint
     txLogs: LogEntry[]
     isConnecting: boolean
     deviceNameFilter: string
@@ -30,7 +30,9 @@ export function ConnectPage({
             <section className="connect-card">
                 <p className="eyebrow">Chair Bluetooth</p>
                 <h1>Connect</h1>
-                <p className="hint">{connectionHint}</p>
+                <p className={`hint hint--${connectionHint.level ?? 'info'}`}>
+                    {connectionHint.text}
+                </p>
 
                 <div className="connect-grid">
                     <label>
