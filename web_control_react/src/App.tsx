@@ -17,6 +17,8 @@ function App() {
         txLogs,
         rxLogs,
         uuidSettings,
+        deviceNameFilter,
+        pressurePreference,
         topBarTime,
         powerActionText,
         connect,
@@ -25,6 +27,9 @@ function App() {
         saveUuidSettings,
         resetUuidSettings,
         setUuidField,
+        setDeviceNameFilter,
+        setPreferredAirAction,
+        setPreferredMassageAction,
     } = useChairController()
 
     if (!isConnected || screen === 'connect') {
@@ -34,7 +39,9 @@ function App() {
                 connectionHint={connectionHint}
                 txLogs={txLogs}
                 isConnecting={isConnecting}
+                deviceNameFilter={deviceNameFilter}
                 onFieldChange={setUuidField}
+                onDeviceNameFilterChange={setDeviceNameFilter}
                 onSave={saveUuidSettings}
                 onReset={resetUuidSettings}
                 onConnect={connect}
@@ -51,7 +58,10 @@ function App() {
             topBarTime={topBarTime}
             powerActionText={powerActionText}
             rxLogs={rxLogs}
+            pressurePreference={pressurePreference}
             onSendPreset={sendPreset}
+            onSelectPreferredAir={setPreferredAirAction}
+            onSelectPreferredPush={setPreferredMassageAction}
             onToggleSidebar={() => setSidebarOpen((value) => !value)}
             onCloseSidebar={() => setSidebarOpen(false)}
             onSelectScreen={(nextScreen) => {

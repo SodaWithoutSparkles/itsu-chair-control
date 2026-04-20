@@ -1,6 +1,6 @@
 # itsu-chair-control
 
-A reverse-engineered interface for controlling the ITSU massage chair (model IS6028).
+A reverse-engineered interface for controlling the ITSU massage chair (model IS6028). The reference BLE command format is derived from dumped HCI logs and captured traffic from the `com.dqiot.tool.yushou` android app version `1.98`.
 
 This repository contains:
 

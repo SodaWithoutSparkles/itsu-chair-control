@@ -1,4 +1,5 @@
 import { HEAT_PRESETS, POSITION_G_PRESETS, ROCK_PRESETS } from '../lib/presets'
+import { mdiContentCopy } from '@mdi/js'
 import type { ChairStatus, CommandPreset, LogEntry } from '../types'
 
 type SettingsPageProps = {
@@ -7,11 +8,32 @@ type SettingsPageProps = {
     onSendPreset: (preset: CommandPreset) => Promise<void>
 }
 
+function Icon({ path, className }: { path: string; className?: string }) {
+    return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+            <path d={path} />
+        </svg>
+    )
+}
+
 export function SettingsPage({
     chairStatus,
     rxLogs,
     onSendPreset,
 }: SettingsPageProps) {
+    const copyLogs = async (): Promise<void> => {
+        if (rxLogs.length === 0 || !navigator.clipboard?.writeText) {
+            return
+        }
+
+        const payload = rxLogs.map((log) => log.text).join('\n')
+        try {
+            await navigator.clipboard.writeText(payload)
+        } catch {
+            // Ignore clipboard failures silently
+        }
+    }
+
     return (
         <>
             <section className="card-section">
@@ -69,7 +91,18 @@ export function SettingsPage({
             </section>
 
             <section className="card-section compact">
-                <h3>Latest Notifications</h3>
+                <div className="section-header">
+                    <h3>Recent Logs</h3>
+                    <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={copyLogs}
+                        disabled={rxLogs.length === 0}
+                        aria-label="Copy recent logs"
+                    >
+                        <Icon path={mdiContentCopy} />
+                    </button>
+                </div>
                 <div className="log-box">
                     {rxLogs.length === 0 ? (
                         <p>No frames yet.</p>

@@ -5,7 +5,9 @@ type ConnectPageProps = {
     connectionHint: string
     txLogs: LogEntry[]
     isConnecting: boolean
+    deviceNameFilter: string
     onFieldChange: (field: keyof UuidSettings, value: string) => void
+    onDeviceNameFilterChange: (value: string) => void
     onSave: () => void
     onReset: () => void
     onConnect: () => Promise<void>
@@ -16,7 +18,9 @@ export function ConnectPage({
     connectionHint,
     txLogs,
     isConnecting,
+    deviceNameFilter,
     onFieldChange,
+    onDeviceNameFilterChange,
     onSave,
     onReset,
     onConnect,
@@ -62,6 +66,14 @@ export function ConnectPage({
                         <input
                             value={uuidSettings.altWriteUuid3}
                             onChange={(event) => onFieldChange('altWriteUuid3', event.target.value)}
+                        />
+                    </label>
+                    <label>
+                        Device Name Prefix Filter
+                        <input
+                            placeholder="Leave empty to show all nearby devices"
+                            value={deviceNameFilter}
+                            onChange={(event) => onDeviceNameFilterChange(event.target.value)}
                         />
                     </label>
                 </div>

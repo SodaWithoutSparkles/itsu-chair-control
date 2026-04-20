@@ -7,9 +7,10 @@ import {
     mdiWeatherWindy,
 } from '@mdi/js'
 import { POWER_PRESET } from '../lib/presets'
-import type { ChairStatus, CommandPreset, LogEntry, Screen } from '../types'
+import type { ChairStatus, CommandPreset, LogEntry, PressurePreference, Screen } from '../types'
 import { AutoPage } from './AutoPage'
 import { ManualPage } from './ManualPage'
+import { PreferencePage } from './PreferencePage'
 import { SettingsPage } from './SettingsPage'
 
 type ConnectedPageProps = {
@@ -20,7 +21,10 @@ type ConnectedPageProps = {
     topBarTime: string
     powerActionText: string
     rxLogs: LogEntry[]
+    pressurePreference: PressurePreference
     onSendPreset: (preset: CommandPreset) => Promise<void>
+    onSelectPreferredAir: (action: number) => void
+    onSelectPreferredPush: (action: number) => void
     onToggleSidebar: () => void
     onCloseSidebar: () => void
     onSelectScreen: (nextScreen: Exclude<Screen, 'connect'>) => void
@@ -43,7 +47,10 @@ export function ConnectedPage({
     topBarTime,
     powerActionText,
     rxLogs,
+    pressurePreference,
     onSendPreset,
+    onSelectPreferredAir,
+    onSelectPreferredPush,
     onToggleSidebar,
     onCloseSidebar,
     onSelectScreen,
@@ -80,6 +87,13 @@ export function ConnectedPage({
                         onClick={() => onSelectScreen('settings')}
                     >
                         Settings
+                    </button>
+                    <button
+                        type="button"
+                        className={screen === 'preference' ? 'side-link active' : 'side-link'}
+                        onClick={() => onSelectScreen('preference')}
+                    >
+                        Preference
                     </button>
                 </nav>
 
@@ -131,6 +145,14 @@ export function ConnectedPage({
                     ) : null}
                     {screen === 'manual' ? (
                         <ManualPage chairStatus={chairStatus} onSendPreset={onSendPreset} />
+                    ) : null}
+                    {screen === 'preference' ? (
+                        <PreferencePage
+                            pressurePreference={pressurePreference}
+                            onSendPreset={onSendPreset}
+                            onSelectPreferredAir={onSelectPreferredAir}
+                            onSelectPreferredPush={onSelectPreferredPush}
+                        />
                     ) : null}
                     {screen === 'settings' ? (
                         <SettingsPage

@@ -1,21 +1,85 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { decodeStateFrame, extractFramesFromStream } from '../lib/decoder'
+import { AIR_PRESETS, MASSAGE_PRESETS } from '../lib/presets'
 import { buildSendCmdPacket, bytesToHex } from '../lib/protocol'
 import type {
     ChairStatus,
     CommandPreset,
     LogEntry,
+    PressurePreference,
     Screen,
     UuidSettings,
     WriteTarget,
 } from '../types'
 
 const STORAGE_KEY = 'chairControl.react.uuidSettings.v1'
+const PREFERENCE_STORAGE_KEY = 'chairControl.react.preference.v1'
+const DEVICE_FILTER_STORAGE_KEY = 'chairControl.react.deviceFilter.v1'
 const MAX_RX_LOGS = 4
+
+const DEFAULT_PRESSURE_PREFERENCE: PressurePreference = {
+    airAction: AIR_PRESETS[0]?.action ?? 0x01,
+    massageAction: MASSAGE_PRESETS[0]?.action ?? 0x01,
+}
+
+const DEFAULT_DEVICE_NAME_PREFIX_FILTER = 'IS'
+
+const isValidAirAction = (action: number): boolean =>
+    AIR_PRESETS.some((preset) => preset.action === action)
+
+const isValidMassageAction = (action: number): boolean =>
+    MASSAGE_PRESETS.some((preset) => preset.action === action)
+
+const getPreferredAirPreset = (action: number): CommandPreset =>
+    AIR_PRESETS.find((preset) => preset.action === action) ?? AIR_PRESETS[0]
+
+const getPreferredMassagePreset = (action: number): CommandPreset =>
+    MASSAGE_PRESETS.find((preset) => preset.action === action) ?? MASSAGE_PRESETS[0]
+
+const loadStoredPreference = (): PressurePreference => {
+    try {
+        const raw = window.localStorage.getItem(PREFERENCE_STORAGE_KEY)
+        if (!raw) {
+            return DEFAULT_PRESSURE_PREFERENCE
+        }
+
+        const parsed = JSON.parse(raw) as Partial<PressurePreference>
+        const airAction = Number(parsed.airAction)
+        const massageAction = Number(parsed.massageAction)
+
+        return {
+            airAction: isValidAirAction(airAction)
+                ? airAction
+                : DEFAULT_PRESSURE_PREFERENCE.airAction,
+            massageAction: isValidMassageAction(massageAction)
+                ? massageAction
+                : DEFAULT_PRESSURE_PREFERENCE.massageAction,
+        }
+    } catch {
+        return DEFAULT_PRESSURE_PREFERENCE
+    }
+}
+
+const loadStoredDeviceFilter = (): string => {
+    try {
+        const raw = window.localStorage.getItem(DEVICE_FILTER_STORAGE_KEY)
+        const normalized = raw ? String(raw).trim() : ''
+        return normalized || DEFAULT_DEVICE_NAME_PREFIX_FILTER
+    } catch {
+        return DEFAULT_DEVICE_NAME_PREFIX_FILTER
+    }
+}
+
+type BleRequestDeviceFilter = {
+    name?: string
+    namePrefix?: string
+    services?: string[]
+}
 
 type BleRequestDeviceOptions = {
     acceptAllDevices: boolean
     optionalServices?: string[]
+    filters?: BleRequestDeviceFilter[]
 }
 
 type BleCharacteristic = {
@@ -126,12 +190,20 @@ const wait = (ms: number): Promise<void> =>
 
 export function useChairController() {
     const initialConfigRef = useRef<StoredConfig>(loadStoredConfig())
+    const initialPreferenceRef = useRef<PressurePreference>(loadStoredPreference())
+    const initialDeviceFilterRef = useRef<string>(loadStoredDeviceFilter())
 
     const [uuidSettings, setUuidSettings] = useState<UuidSettings>(
         initialConfigRef.current.settings,
     )
     const [activeWriteTarget, setActiveWriteTarget] = useState<WriteTarget>(
         initialConfigRef.current.activeWriteTarget,
+    )
+    const [pressurePreference, setPressurePreference] = useState<PressurePreference>(
+        initialPreferenceRef.current,
+    )
+    const [deviceNameFilter, setDeviceNameFilterState] = useState<string>(
+        initialDeviceFilterRef.current,
     )
 
     const [screen, setScreen] = useState<Screen>('connect')
@@ -191,6 +263,43 @@ export function useChairController() {
             [field]: value,
         }))
     }, [])
+
+    const setDeviceNameFilter = useCallback((value: string): void => {
+        setDeviceNameFilterState(value)
+        window.localStorage.setItem(DEVICE_FILTER_STORAGE_KEY, value)
+    }, [])
+
+    const setPreferredAirAction = useCallback((action: number): void => {
+        if (!isValidAirAction(action)) {
+            return
+        }
+
+        setPressurePreference((previous) => {
+            const next = {
+                ...previous,
+                airAction: action,
+            }
+            window.localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(next))
+            return next
+        })
+        appendTx(`Preference saved: Air ${action}.`)
+    }, [appendTx])
+
+    const setPreferredMassageAction = useCallback((action: number): void => {
+        if (!isValidMassageAction(action)) {
+            return
+        }
+
+        setPressurePreference((previous) => {
+            const next = {
+                ...previous,
+                massageAction: action,
+            }
+            window.localStorage.setItem(PREFERENCE_STORAGE_KEY, JSON.stringify(next))
+            return next
+        })
+        appendTx(`Preference saved: Push ${action}.`)
+    }, [appendTx])
 
     const detachNotifications = useCallback(async () => {
         const readChar = readCharRef.current
@@ -307,17 +416,30 @@ export function useChairController() {
         }
 
         setIsConnecting(true)
-        setConnectionHint('Connecting and checking primary write UUID first...')
+        const normalizedFilter = deviceNameFilter.trim()
+        if (normalizedFilter) {
+            setConnectionHint(
+                `Connecting with device name prefix filter "${normalizedFilter}" and checking primary write UUID first...`,
+            )
+        } else {
+            setConnectionHint('Connecting and checking primary write UUID first...')
+        }
 
         try {
             const settings = normalizeSettings(uuidSettings)
             setUuidSettings(settings)
             persistConfig(settings, activeWriteTarget)
 
-            const requestOptions: BleRequestDeviceOptions = {
-                acceptAllDevices: true,
-                optionalServices: [settings.serviceUuid],
-            }
+            const requestOptions: BleRequestDeviceOptions = normalizedFilter
+                ? {
+                    acceptAllDevices: false,
+                    filters: [{ namePrefix: normalizedFilter }],
+                    optionalServices: [settings.serviceUuid],
+                }
+                : {
+                    acceptAllDevices: true,
+                    optionalServices: [settings.serviceUuid],
+                }
 
             const device = await bluetooth.requestDevice(requestOptions)
             const gatt = await device.gatt?.connect()
@@ -328,8 +450,16 @@ export function useChairController() {
             const service = await gatt.getPrimaryService(settings.serviceUuid)
             const readChar = await tryGetCharacteristic(service, settings.readUuid)
             const writeChar = await tryGetCharacteristic(service, settings.writeUuid)
-            const alt2Char = await tryGetCharacteristic(service, settings.altWriteUuid2)
-            const alt3Char = await tryGetCharacteristic(service, settings.altWriteUuid3)
+            let alt2Char: BleCharacteristic | null = null
+            let alt3Char: BleCharacteristic | null = null
+
+            // Primary write UUID found: skip alternate UUID probes to speed up connect.
+            if (!writeChar) {
+                alt2Char = await tryGetCharacteristic(service, settings.altWriteUuid2)
+                if (!alt2Char) {
+                    alt3Char = await tryGetCharacteristic(service, settings.altWriteUuid3)
+                }
+            }
 
             if (!writeChar && !alt2Char && !alt3Char) {
                 throw new Error('No writable characteristic found. Check UUIDs and reconnect.')
@@ -375,7 +505,7 @@ export function useChairController() {
         } finally {
             setIsConnecting(false)
         }
-    }, [activeWriteTarget, appendTx, handleDisconnected, persistConfig, startNotifications, uuidSettings])
+    }, [activeWriteTarget, appendTx, deviceNameFilter, handleDisconnected, persistConfig, startNotifications, uuidSettings])
 
     const disconnect = useCallback(() => {
         const device = deviceRef.current
@@ -448,12 +578,39 @@ export function useChairController() {
                 }
 
                 appendTx(`${preset.label} sent | ${bytesToHex(packet)}`)
+
+                if (preset.key.startsWith('auto_')) {
+                    const preferredAirPreset = getPreferredAirPreset(pressurePreference.airAction)
+                    const preferredMassagePreset = getPreferredMassagePreset(
+                        pressurePreference.massageAction,
+                    )
+
+                    await wait(80)
+                    const airPacket = buildSendCmdPacket(
+                        preferredAirPreset.cmd,
+                        preferredAirPreset.action,
+                    )
+                    await writePacket(characteristic, airPacket)
+
+                    await wait(80)
+                    const pushPacket = buildSendCmdPacket(
+                        preferredMassagePreset.cmd,
+                        preferredMassagePreset.action,
+                    )
+                    await writePacket(characteristic, pushPacket)
+                    await wait(60)
+                    await writePacket(characteristic, pushPacket)
+
+                    appendTx(
+                        `Auto preference applied: Air ${preferredAirPreset.action}, Push ${preferredMassagePreset.action}.`,
+                    )
+                }
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Unknown send error'
                 appendTx(`Send failed for ${preset.label}: ${message}`)
             }
         },
-        [activeWriteCharacteristic, appendTx, isConnected, writePacket],
+        [activeWriteCharacteristic, appendTx, isConnected, pressurePreference, writePacket],
     )
 
     const saveUuidSettings = useCallback((): void => {
@@ -492,6 +649,8 @@ export function useChairController() {
         txLogs,
         rxLogs,
         uuidSettings,
+        deviceNameFilter,
+        pressurePreference,
         topBarTime,
         powerActionText,
         connect,
@@ -500,5 +659,8 @@ export function useChairController() {
         saveUuidSettings,
         resetUuidSettings,
         setUuidField,
+        setDeviceNameFilter,
+        setPreferredAirAction,
+        setPreferredMassageAction,
     }
 }

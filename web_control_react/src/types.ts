@@ -1,6 +1,11 @@
 export type WriteTarget = 'write' | 'alt2' | 'alt3'
 
-export type Screen = 'connect' | 'auto' | 'manual' | 'settings'
+export type Screen = 'connect' | 'auto' | 'manual' | 'preference' | 'settings'
+
+export interface PressurePreference {
+  airAction: number
+  massageAction: number
+}
 
 export interface UuidSettings {
   serviceUuid: string
