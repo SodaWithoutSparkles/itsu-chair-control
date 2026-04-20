@@ -1,5 +1,7 @@
 export type WriteTarget = 'write' | 'alt2' | 'alt3'
 
+export type Screen = 'connect' | 'auto' | 'manual' | 'settings'
+
 export interface UuidSettings {
   serviceUuid: string
   readUuid: string
