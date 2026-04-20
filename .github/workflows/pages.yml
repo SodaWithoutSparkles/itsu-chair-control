@@ -6,6 +6,7 @@ on:
       - '*'
   create:
     ref_type: tag
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -17,6 +18,9 @@ jobs:
     concurrency:
       group: pages-${{ github.ref }}
       cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: web_control_react
 
     steps:
       - name: Checkout repository
@@ -27,19 +31,18 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: 'web_control_react/package-lock.json'
 
       - name: Install dependencies
-        working-directory: web_control_react
         run: npm install
 
       - name: Build site
-        working-directory: web_control_react
         run: npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: web_control_react/dist
+          path: 'web_control_react/dist'
 
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v5
